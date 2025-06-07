@@ -1,56 +1,60 @@
-# 기내 수화물 불가 항목 리스트
-forbidden_items = [
-    "골프채", "야구방망이", "스키장비", "스노보드", "하키스틱",
-    "액체류 100ml 초과", "가스통", "전지", "화장품 100ml 초과",
-    "칼", "가위", "드라이버", "해머", "스패너",
-    "스프레이", "압축가스", "인화성물질", "폭발물",
-    "전자담요", "전기장판", "전기히터", "전기밥솥",
-    "생선", "고기", "과일", "채소", "유제품",
-    "알코올 70% 이상", "의약품 100ml 초과"
+import requests
+
+# OpenRouter API 정보
+URL = "https://openrouter.ai/api/v1/chat/completions"
+HEADERS = {
+    "Authorization": "Bearer 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",  # 새 API 키 적용
+    "Content-Type": "application/json"
+}
+
+# 금지물품 리스트
+PROHIBITED_ITEMS = [
+    "물총", "가위", "칼", "스위스 군용칼", "총", "화약", "폭발물",
+    "화학약품", "염산", "과산화수소", "아세톤", "벤젠",
+    "가스레인지", "라이터", "성냥", "스프레이", "압축가스"
 ]
 
-def check_baggage(item):
+# OpenRouter API로 텍스트 분석
+def analyze_text_with_ai(text: str):
+    prompt = f"""
+    당신은 항공서비스 분야의 전문가이자 수하물 검사관입니다.\n아래는 항공기 기내 반입 금지 물품 목록입니다:\n{', '.join(PROHIBITED_ITEMS)}\n\n아래의 물품이 금지물품에 해당하는지, 그리고 그 이유와 관련 규정(국제항공운송협회, IATA 기준 등)을 한국어로 공식적이고 친절하게 설명해 주세요.\n물품: {text}
     """
-    입력받은 물품이 기내 수화물로 가능한지 확인하는 함수
-    
-    Args:
-        item (str): 확인할 물품 이름
-        
-    Returns:
-        str: 확인 결과 메시지
-    """
-    if item in forbidden_items:
-        return f"'{item}'은(는) 기내 수화물로 반입이 불가능합니다. 위탁수화물로 포함하세요."
-    else:
-        return f"'{item}'은(는) 기내 수화물로 반입이 가능합니다."
-
-def print_forbidden_list():
-    """기내 수화물 불가 항목 리스트를 출력하는 함수"""
-    print("\n=== 기내 수화물 반입 불가 항목 리스트 ===")
-    for i, item in enumerate(forbidden_items, 1):
-        print(f"{i}. {item}")
-    print("======================================\n")
+    data = {
+        "model": "meta-llama/llama-3.3-8b-instruct:free",
+        "messages": [
+            {"role": "user", "content": prompt}
+        ]
+    }
+    try:
+        response = requests.post(URL, headers=HEADERS, json=data)
+        response.raise_for_status()
+        result = response.json()
+        return result["choices"][0]["message"]["content"]
+    except Exception as e:
+        return f"AI 분석 중 오류 발생: {e}"
 
 def main():
-    print("기내 수화물 체크 프로그램입니다.")
-    print("물품을 입력하면 기내 수화물 반입 가능 여부를 알려드립니다.")
-    print("종료하려면 'q' 또는 'quit'를 입력하세요.")
-    
-    print_forbidden_list()
-    
+    print("수하물 검사 프로그램에 오신 것을 환영합니다!\n")
     while True:
-        user_input = input("\n확인할 물품을 입력하세요: ").strip()
-        
-        if user_input.lower() in ['q', 'quit']:
+        print("1. 텍스트로 물품 검사")
+        print("2. 금지물품 목록 보기")
+        print("3. 종료")
+        choice = input("\n원하는 기능을 선택하세요 (1-3): ")
+        if choice == "1":
+            item = input("검사할 물품 이름을 입력하세요: ")
+            print("AI 분석 중... 잠시만 기다려주세요.")
+            result = analyze_text_with_ai(item)
+            print(f"\n분석 결과: {result}\n")
+        elif choice == "2":
+            print("\n[금지물품 목록]")
+            for item in PROHIBITED_ITEMS:
+                print(f"- {item}")
+            print()
+        elif choice == "3":
             print("프로그램을 종료합니다.")
             break
-            
-        if not user_input:
-            print("물품을 입력해주세요.")
-            continue
-            
-        result = check_baggage(user_input)
-        print(result)
+        else:
+            print("잘못된 입력입니다. 다시 선택해주세요.\n")
 
 if __name__ == "__main__":
     main() 
