@@ -11,6 +11,9 @@
         .logo { font-size: 2rem; font-weight: bold; color: #0d6efd; margin-bottom: 20px; }
         .result-box { background: #fff; border-radius: 10px; box-shadow: 0 2px 8px #0001; padding: 20px; margin-top: 20px; }
         .btn-main { width: 100%; font-size: 1.1rem; }
+        .warning { color: #dc3545; font-weight: bold; }
+        .info { color: #0d6efd; font-weight: bold; }
+        .loading-spinner { display: none; margin-top: 15px; }
     </style>
 </head>
 <body>
@@ -23,9 +26,17 @@
         <button type="submit" class="btn btn-primary btn-main">검사하기</button>
     </form>
     <button class="btn btn-outline-secondary btn-main mt-2" data-bs-toggle="modal" data-bs-target="#prohibitedModal">금지물품 목록 보기</button>
+    
+    <div class="loading-spinner text-center" id="loadingSpinner">
+        <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Loading...</span>
+        </div>
+        <div class="mt-2 text-primary">AI 분석 중...</div>
+    </div>
+
     <div id="resultBox" class="result-box d-none">
-        <div class="fw-bold mb-2">분석 결과</div>
-        <div id="resultText">예시: 가위는 날카로운 도구로, 국제항공운송협회(IATA) 규정에 따라 기내 반입이 금지되어 있습니다.</div>
+        <div class="fw-bold mb-2" id="statusMessage"></div>
+        <div id="resultText" class="text-muted small"></div>
     </div>
 </div>
 
@@ -38,25 +49,7 @@
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
       <div class="modal-body">
-        <ul>
-          <li>물총</li>
-          <li>가위</li>
-          <li>칼</li>
-          <li>스위스 군용칼</li>
-          <li>총</li>
-          <li>화약</li>
-          <li>폭발물</li>
-          <li>화학약품</li>
-          <li>염산</li>
-          <li>과산화수소</li>
-          <li>아세톤</li>
-          <li>벤젠</li>
-          <li>가스레인지</li>
-          <li>라이터</li>
-          <li>성냥</li>
-          <li>스프레이</li>
-          <li>압축가스</li>
-        </ul>
+        <ul id="prohibitedList"></ul>
       </div>
     </div>
   </div>
@@ -64,24 +57,106 @@
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script>
-// 더미 결과 표시
+const OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions";
+const OPENROUTER_API_KEY = "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"; // 사용자님의 API 키
+
+const PROHIBITED_ITEMS = [
+    "물총", "가위", "칼", "스위스 군용칼", "총", "화약", "폭발물",
+    "화학약품", "염산", "과산화수소", "아세톤", "벤젠",
+    "가스레인지", "라이터", "성냥", "스프레이", "압축가스",
+    "위조화폐", "위조채권", "위조은행권", "원화표시여행자수표",
+    "여행자수표", "실물증권", "자기앞수표", "당좌수표", "우편환",
+    "귀금속", "골드바", "총기", "도검", "화약", "무기",
+    "폭발물", "유독성물질", "폭죽", "식칼", "식도", "과도", "나이프",
+    "칼", "커터칼", "눈썹칼", "맥가이버칼", "스위스칼",
+    "공구", "망치", "렌치", "가위", "면도기", "마약", "멸종위기종",
+    "야생동물", "호랑이", "표범", "코끼리", "타조", "매",
+    "올빼미", "코브라", "거북", "악어", "철갑상어", "산호", "난",
+    "선인장", "알로에", "박제", "모피", "모피핸드백", "모피가방",
+    "모피지갑", "상아", "상아팔찌", "상아목걸이", "동물한약", "웅담",
+    "사향", "식물한약", "목향", "구척", "천마", "식물", "과일",
+    "채소", "야채", "농림산물류", "문화재", "문화유산", "유형문화유산",
+    "물", "액체", "세면용품", "치약", "샴푸", "물약", "약", "술",
+    "약주", "음료수", "로션", "핸드크림", "토너", "파운데이션", "스킨",
+    "에센스", "세럼", "수분크림", "선크림", "메이크업베이스", "립글로스",
+    "립오일", "컨실러", "BB크림", "CC크림", "미스트", "메이크업픽서",
+    "클렌징오일", "클렌징밤", "클렌징폼", "세안제", "클렌징워터", "리무버",
+    "네일리무버", "매니큐어", "퍼퓸", "향수", "헤어에센스", "스프레이",
+    "헤어스프레이", "산소스프레이", "해충기피제", "호신용스프레이", "에프킬라",
+    "살충제", "고추장", "김치", "음식물", "아이스팩", "대형라이터", "전기라이터", "토치"
+];
+
+// 금지물품 목록을 모달에 표시
+const prohibitedListUl = document.getElementById('prohibitedList');
+PROHIBITED_ITEMS.forEach(item => {
+    const li = document.createElement('li');
+    li.textContent = item;
+    prohibitedListUl.appendChild(li);
+});
+
 const form = document.getElementById('checkForm');
 const resultBox = document.getElementById('resultBox');
+const statusMessage = document.getElementById('statusMessage');
 const resultText = document.getElementById('resultText');
+const loadingSpinner = document.getElementById('loadingSpinner');
 
-form.addEventListener('submit', function(e) {
+form.addEventListener('submit', async function(e) {
     e.preventDefault();
     const item = document.getElementById('itemInput').value.trim();
     if (!item) return;
-    // 예시 답변 (실제 AI 연동 시 이 부분을 수정)
-    if (item.includes('가위')) {
-        resultText.textContent = '가위는 날카로운 도구로, 국제항공운송협회(IATA) 규정에 따라 기내 반입이 금지되어 있습니다.';
-    } else if (item.includes('물')) {
-        resultText.textContent = '물은 액체류로 분류되어, 100ml를 초과하는 경우 기내 반입이 제한됩니다.';
-    } else {
-        resultText.textContent = `${item}에 대한 정보가 없습니다. 관리자에게 문의해 주세요.`;
+
+    resultBox.classList.add('d-none');
+    loadingSpinner.style.display = 'block'; // 로딩 스피너 표시
+
+    try {
+        const prompt = `당신은 항공서비스 분야의 전문가이자 수하물 검사관입니다.\n아래는 항공기 기내 반입 금지 물품 목록입니다:\n${PROHIBITED_ITEMS.join(', ')}\n\n다음 물품이 항공기 기내 반입이 금지된 물품인지 아닌지 명확하게 판단하여 답변해주세요.\n만약 금지된 물품이라면 답변 시작 부분에 반드시 '[금지] '라고 표시하고, 그 이유와 관련 규정(국제항공운송협회, IATA 기준 등)을 한국어로 공식적이고 친절하게 설명해주세요.\n만약 금지되지 않은 물품이라면 답변 시작 부분에 반드시 '[가능] '라고 표시하고, 간략하게 설명해주세요.\n물품: ${item}`;
+
+        const response = await fetch(OPENROUTER_API_URL, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                model: "meta-llama/llama-3.3-8b-instruct:free",
+                messages: [{ role: "user", content: prompt }]
+            })
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(`API 오류: ${response.status} ${response.statusText} - ${errorData.message || JSON.stringify(errorData)}`);
+        }
+
+        const result = await response.json();
+        const aiResponse = result.choices[0].message.content;
+        
+        let isProhibited = false;
+        if (aiResponse.startsWith('[금지]')) {
+            isProhibited = true;
+        }
+
+        statusMessage.classList.remove('warning', 'info');
+
+        if (isProhibited) {
+            statusMessage.textContent = `🔔 경고: '${item}'은(는) 기내 수하물로 반입이 불가능합니다.`;
+            statusMessage.classList.add('warning');
+            resultText.innerHTML = `[AI 상세 분석 결과]<br/>${aiResponse.replace('[금지]', '').trim()}`; // 태그 제거 후 표시
+        } else {
+            statusMessage.textContent = `✅ 안내: '${item}'은(는) 기내 수하물로 반입이 가능합니다.`;
+            statusMessage.classList.add('info');
+            resultText.innerHTML = `[AI 상세 분석 결과]<br/>${aiResponse.replace('[가능]', '').trim()}`; // 태그 제거 후 표시
+        }
+
+    } catch (error) {
+        statusMessage.classList.remove('warning', 'info');
+        statusMessage.textContent = `❌ 오류: 물품 분석 중 오류가 발생했습니다.`;
+        statusMessage.classList.add('warning');
+        resultText.innerHTML = `[오류 상세]<br/>${error.message || error}`; 
+    } finally {
+        loadingSpinner.style.display = 'none'; // 로딩 스피너 숨김
+        resultBox.classList.remove('d-none');
     }
-    resultBox.classList.remove('d-none');
 });
 </script>
 </body>
