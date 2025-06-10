@@ -50,8 +50,17 @@ ALLOWED_ITEMS = [
 
 # OpenRouter API로 텍스트 분석
 def analyze_text_with_ai(text: str):
+    # 먼저 금지물품 리스트 확인
+    if text in PROHIBITED_ITEMS:
+        return True, f"[금지] '{text}'은(는) 항공기 기내 반입이 금지된 물품입니다."
+    
+    # 허용물품 리스트 확인
+    if text in ALLOWED_ITEMS:
+        return False, f"[가능] '{text}'은(는) 항공기 기내 반입이 가능한 물품입니다."
+    
+    # 리스트에 없는 경우 AI에게 물어보기
     prompt = f"""
-    당신은 항공서비스 분야의 전문가이자 수하물 검사관입니다.\n아래는 항공기 기내 반입 금지 물품 목록입니다:\n{', '.join(PROHIBITED_ITEMS)}\n\n다음 물품이 항공기 기내 반입이 금지된 물품인지 아닌지 명확하게 판단하여 답변해주세요.\n만약 금지된 물품이라면 답변 시작 부분에 반드시 '[금지] '라고 표시하고, 그 이유와 관련 규정(국제항공운송협회, IATA 기준 등)을 한국어로 공식적이고 친절하게 설명해주세요.\n만약 금지되지 않은 물품이라면 답변 시작 부분에 반드시 '[가능] '라고 표시하고, 간략하게 설명해주세요.\n물품: {text}
+    당신은 항공서비스 분야의 전문가이자 수하물 검사관입니다.\n만약 금지된 물품이라면 답변 시작 부분에 반드시 '[금지] '라고 표시하고, 그 이유와 관련 규정(국제항공운송협회, IATA 기준 등)을 한국어로 공식적이고 친절하게 설명해주세요.\n만약 금지되지 않은 물품이라면 답변 시작 부분에 반드시 '[가능] '라고 표시하고, 간략하게 설명해주세요.\n물품: {text}
     """
     data = {
         "model": "meta-llama/llama-3.3-8b-instruct:free",
@@ -76,33 +85,39 @@ def analyze_text_with_ai(text: str):
 
 def main():
     print("수하물 검사 프로그램에 오신 것을 환영합니다!\n")
+    print("물품 검사를 시작합니다. (종료하려면 '종료' 입력)")
     while True:
-        print("1. 텍스트로 물품 검사")
-        print("2. 금지물품 목록 보기")
-        print("3. 종료")
-        choice = input("\n원하는 기능을 선택하세요 (1-3): ")
-        if choice == "1":
-            item = input("검사할 물품 이름을 입력하세요: ")
-            print("AI 분석 중... 잠시만 기다려주세요.")
-            is_prohibited, analysis_result = analyze_text_with_ai(item)
+        try:
+            item = input("\n검사할 물품 이름을 입력하세요: ").strip()
+            if item == "종료":
+                print("\n프로그램을 종료합니다.")
+                break
+            if not item:  # 빈 입력 처리
+                print("물품 이름을 입력해주세요.")
+                continue
             
-            if is_prohibited:
-                print(f"\n🔔 경고: '{item}'은(는) 기내 수하물로 반입이 불가능합니다. 위탁수화물에 포함하거나 폐기해 주세요.\n")
+            # 리스트에 있는 경우 즉시 판단
+            if item in PROHIBITED_ITEMS:
+                print(f"\n🔔 경고: '{item}'은(는) 기내 수하물로 반입이 불가능합니다. 위탁수화물에 포함하거나 폐기해 주세요.")
+                print(f"[판단 근거] 금지물품 목록에 등록된 물품입니다.")
+            elif item in ALLOWED_ITEMS:
+                print(f"\n✅ 안내: '{item}'은(는) 기내 수하물로 반입이 가능합니다.")
+                print(f"[판단 근거] 허용물품 목록에 등록된 물품입니다.")
             else:
-                print(f"\n✅ 안내: '{item}'은(는) 기내 수하물로 반입이 가능합니다.\n")
-            
-            print(f"[AI 상세 분석 결과]\n{analysis_result}\n")
+                # 리스트에 없는 경우 AI 분석
+                print("AI 분석 중... 잠시만 기다려주세요.")
+                is_prohibited, analysis_result = analyze_text_with_ai(item)
+                
+                if is_prohibited:
+                    print(f"\n🔔 경고: '{item}'은(는) 기내 수하물로 반입이 불가능합니다. 위탁수화물에 포함하거나 폐기해 주세요.")
+                else:
+                    print(f"\n✅ 안내: '{item}'은(는) 기내 수하물로 반입이 가능합니다.")
+                
+                print(f"[AI 상세 분석 결과]\n{analysis_result}")
 
-        elif choice == "2":
-            print("\n[금지물품 목록]")
-            for item in PROHIBITED_ITEMS:
-                print(f"- {item}")
-            print()
-        elif choice == "3":
-            print("프로그램을 종료합니다.")
-            break
-        else:
-            print("잘못된 입력입니다. 다시 선택해주세요.\n")
+        except Exception as e:
+            print(f"오류가 발생했습니다: {e}\n")
+            continue
 
 if __name__ == "__main__":
     main() 
