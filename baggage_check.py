@@ -1,17 +1,12 @@
 import requests
 
-# OpenRouter API 정보
-URL = "https://openrouter.ai/api/v1/chat/completions"
-HEADERS = {
-    "Authorization": "Bearer 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",  # 새 API 키 적용
-    "Content-Type": "application/json"
-}
+API_KEY = "AIzaSyD2NBMydOQw_GOepdRtksFaPdHSdg1dYok"
 
 # 금지물품 리스트 (전체 목록 반영)
-PROHIBITED_ITEMS = [
+PROHIBITED_ITEMS = list(set([
     "물총", "가위", "칼", "스위스 군용칼", "총", "화약", "폭발물",
     "화학약품", "염산", "과산화수소", "아세톤", "벤젠",
-    "가스레인지", "라이터", "성냥", "스프레이", "압축가스",
+    "가스레인지", "스프레이", "압축가스",
     "위조화폐", "위조채권", "위조은행권", "원화표시여행자수표",
     "여행자수표", "실물증권", "자기앞수표", "당좌수표", "우편환",
     "귀금속", "골드바", "총기", "도검", "화약", "무기",
@@ -29,13 +24,13 @@ PROHIBITED_ITEMS = [
     "에센스", "세럼", "수분크림", "선크림", "메이크업베이스", "립글로스",
     "립오일", "컨실러", "BB크림", "CC크림", "미스트", "메이크업픽서",
     "클렌징오일", "클렌징밤", "클렌징폼", "세안제", "클렌징워터", "리무버",
-    "네일리무버", "매니큐어", "퍼퓸", "향수", "헤어에센스", "스프레이",
+    "네일리무버", "매니큐어", "퍼퓸", "향수", "헤어에센스", 
     "헤어스프레이", "산소스프레이", "해충기피제", "호신용스프레이", "에프킬라",
     "살충제", "고추장", "김치", "음식물", "아이스팩", "대형라이터", "전기라이터", "토치"
-];
+]))
 
 # 허용물품 리스트
-ALLOWED_ITEMS = [
+ALLOWED_ITEMS = list(set([
     "리튬이온배터리", "보조배터리", "배터리", "밧데리", "라이터", "성냥", "컴퓨터", "데스크탑", "노트북", "랩탑", "태블릿", 
     "폰", "스마트폰", "핸드폰", "스마트워치", "애플워치", "아이패드", "카메라", "캠코더", "웨어러블", "고데기", "매직기", 
     "전자담배", "등산용스틱", "등산스틱", "삼각대", "셀카봉", "트라이포드", "옷", "종이", "케이블", "책", "휴대폰", 
@@ -46,42 +41,15 @@ ALLOWED_ITEMS = [
     "립스틱", "립밤", "고체향수", "고체비누", "쿠션", "고체파운데이션", "브로우펜슬", "아이라이너펜슬", "마스카라", 
     "메이크업스펀지", "거울", "뷰러", "햇반", "즉석밥", "라면", "삶은달걀", "소금", "프라이팬", "냄비", "전기밥솥", 
     "레고", "블록", "양말", "브라우니", "캔디", "아이폰"
-]
+]))
 
-# OpenRouter API로 텍스트 분석
-def analyze_text_with_ai(text: str):
-    # 먼저 금지물품 리스트 확인
-    if text in PROHIBITED_ITEMS:
-        return True, f"[금지] '{text}'은(는) 항공기 기내 반입이 금지된 물품입니다."
-    
-    # 허용물품 리스트 확인
-    if text in ALLOWED_ITEMS:
-        return False, f"[가능] '{text}'은(는) 항공기 기내 반입이 가능한 물품입니다."
-    
-    # 리스트에 없는 경우 AI에게 물어보기
-    prompt = f"""
-    당신은 항공서비스 분야의 전문가이자 수하물 검사관입니다.\n만약 금지된 물품이라면 답변 시작 부분에 반드시 '[금지] '라고 표시하고, 그 이유와 관련 규정(국제항공운송협회, IATA 기준 등)을 한국어로 공식적이고 친절하게 설명해주세요.\n만약 금지되지 않은 물품이라면 답변 시작 부분에 반드시 '[가능] '라고 표시하고, 간략하게 설명해주세요.\n물품: {text}
-    """
-    data = {
-        "model": "meta-llama/llama-3.3-8b-instruct:free",
-        "messages": [
-            {"role": "user", "content": prompt}
-        ]
-    }
-    try:
-        response = requests.post(URL, headers=HEADERS, json=data)
-        response.raise_for_status()
-        result = response.json()
-        ai_response = result["choices"][0]["message"]["content"]
-        
-        is_prohibited = False
-        if ai_response.startswith('[금지]'):
-            is_prohibited = True
-
-        return is_prohibited, ai_response
-
-    except Exception as e:
-        return False, f"AI 분석 중 오류 발생: {e}"
+# 금지/허용 물품 확인 함수
+def check_item_list(item: str):
+    if item in PROHIBITED_ITEMS:
+        return True, f"⛔️ 경고: '{item}'은(는) 기내 수하물로 반입이 불가능합니다.", "[판단 근거] 금지물품 목록에 등록된 물품입니다."
+    elif item in ALLOWED_ITEMS:
+        return False, f"✅ 안내: '{item}'은(는) 기내 수하물로 반입이 가능합니다.", "[판단 근거] 허용물품 목록에 등록된 물품입니다."
+    return None, None, None  # 리스트에 없음
 
 def main():
     print("수하물 검사 프로그램에 오신 것을 환영합니다!\n")
@@ -95,29 +63,75 @@ def main():
             if not item:  # 빈 입력 처리
                 print("물품 이름을 입력해주세요.")
                 continue
-            
-            # 리스트에 있는 경우 즉시 판단
-            if item in PROHIBITED_ITEMS:
-                print(f"\n🔔 경고: '{item}'은(는) 기내 수하물로 반입이 불가능합니다. 위탁수화물에 포함하거나 폐기해 주세요.")
-                print(f"[판단 근거] 금지물품 목록에 등록된 물품입니다.")
-            elif item in ALLOWED_ITEMS:
-                print(f"\n✅ 안내: '{item}'은(는) 기내 수하물로 반입이 가능합니다.")
-                print(f"[판단 근거] 허용물품 목록에 등록된 물품입니다.")
+
+            is_prohibited, message, reason = check_item_list(item)
+            if is_prohibited is not None:
+                print(f"\n{message}")
+                print(reason)
             else:
-                # 리스트에 없는 경우 AI 분석
                 print("AI 분석 중... 잠시만 기다려주세요.")
-                is_prohibited, analysis_result = analyze_text_with_ai(item)
+                is_prohibited, ai_result = analyze_text_with_ai(item)
+
+                # if is_prohibited:
+                #     print(f"\n⛔️ 경고: '{item}'은(는) 기내 수하물로 반입이 불가능합니다.")
+                # else:
+                #     print(f"\n✅ 안내: '{item}'은(는) 기내 수하물로 반입이 가능합니다.")
                 
-                if is_prohibited:
-                    print(f"\n🔔 경고: '{item}'은(는) 기내 수하물로 반입이 불가능합니다. 위탁수화물에 포함하거나 폐기해 주세요.")
-                else:
-                    print(f"\n✅ 안내: '{item}'은(는) 기내 수하물로 반입이 가능합니다.")
-                
-                print(f"[AI 상세 분석 결과]\n{analysis_result}")
+                print(f"{ai_result}")
 
         except Exception as e:
             print(f"오류가 발생했습니다: {e}\n")
             continue
+
+def analyze_text_with_ai(text: str):
+    # 리스트에서 먼저 검사
+    is_prohibited, message, reason = check_item_list(text)
+    if is_prohibited is not None:
+        return is_prohibited, f"{message}\n{reason}"
+    
+    prompt = f"""
+You are a professional airline baggage inspector and aviation safety expert.
+
+Evaluate whether the following item can be brought in carry-on baggage on an international flight, based strictly on IATA rules and aviation safety principles.
+
+⚠️ VERY IMPORTANT INSTRUCTIONS:
+
+1. Be **strict and conservative**. If there is **any possibility** that the item might be prohibited, you must consider it **prohibited**.
+2. In that case, start your Korean response with: ⛔️ 경고:
+3. Only if you are **completely certain** that the item is allowed on all international flights as carry-on baggage, you may use: ✅ 안내:
+4. You must output the final answer in **Korean only**, including the warning/guidance icon.
+5. Your answer should be clear, natural Korean for a typical airline passenger.
+
+Item to evaluate: "{text}"
+    """
+
+    try:
+        ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
+        params = {"key": API_KEY}
+    
+        data = {
+            "contents": [
+                {
+                    "role": "user",
+                    "parts": [{"text": prompt}]
+                }
+            ]
+        }
+
+        response = requests.post(ENDPOINT, json=data, params=params)
+        response.raise_for_status()
+        result = response.json()
+
+        try:
+            ai_response = result['candidates'][0]['content']['parts'][0]['text']
+        except (KeyError, IndexError):
+            return False, "AI 응답을 파싱하는 데 실패했습니다."
+
+        is_prohibited = ai_response.startswith('[금지]')
+        return is_prohibited, ai_response
+
+    except Exception as e:
+        return False, f"AI 분석 중 오류 발생: {e}"
 
 if __name__ == "__main__":
     main() 
