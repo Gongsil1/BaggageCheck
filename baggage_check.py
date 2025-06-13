@@ -1,6 +1,6 @@
 import requests
 
-API_KEY = "AIzaSyD2NBMydOQw_GOepdRtksFaPdHSdg1dYok"
+API_KEY = "사용자의 API키를 입력하세요"
 
 # 금지물품 리스트 (전체 목록 반영)
 PROHIBITED_ITEMS = list(set([
